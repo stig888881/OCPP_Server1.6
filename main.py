@@ -3,6 +3,10 @@ import logging
 import psycopg2
 from config import host, user, password, db_name
 from datetime import datetime
+from ocpp.routing import on
+from ocpp.v16 import ChargePoint as cp
+from ocpp.v16.enums import Action, RegistrationStatus
+from ocpp.v16 import call_result
 
 try:
     import websockets
@@ -24,7 +28,6 @@ def Get_Client():
         cursor = connection.cursor()
         sql_insert_query = """ SELECT * FROM public."Client" """
 
-        # executemany() to insert multiple rows
         cursor.execute(sql_insert_query)
         connection.commit()
         print(cursor.rowcount, "Record inserted successfully into mobile table")
@@ -35,7 +38,6 @@ def Get_Client():
         print("Failed inserting record into mobile table {}".format(error))
 
     finally:
-        # closing database connection.
         if connection:
             cursor.close()
             connection.close()
@@ -51,7 +53,6 @@ def Insert(id):
         cursor = connection.cursor()
         sql_insert_query = """ INSERT INTO public."Transaction" ("User") VALUES (%s)"""
 
-        # executemany() to insert multiple rows
         cursor.execute(sql_insert_query, id)
         connection.commit()
         print(cursor.rowcount, "Record inserted successfully into mobile table")
@@ -60,7 +61,6 @@ def Insert(id):
         print("Failed inserting record into mobile table {}".format(error))
 
     finally:
-        # closing database connection.
         if connection:
             cursor.close()
             connection.close()
@@ -76,10 +76,9 @@ def Update_trans():
         cursor = connection.cursor()
         sql_insert_query = """ SELECT id FROM public."Transaction" ORDER BY id DESC LIMIT 1"""
 
-        # executemany() to insert multiple rows
         cursor.execute(sql_insert_query)
         connection.commit()
-        print(cursor.rowcount, "Record inserted successfully into mobile table")
+        print(cursor.rowcount, "Update done")
 
         Transaction = cursor.fetchone()
         idT = Transaction[0]
@@ -89,16 +88,10 @@ def Update_trans():
         print("Failed inserting record into mobile table {}".format(error))
 
     finally:
-        # closing database connection.
         if connection:
             cursor.close()
             connection.close()
             print("PostgreSQL connection is closed")
-
-from ocpp.routing import on
-from ocpp.v16 import ChargePoint as cp
-from ocpp.v16.enums import Action, RegistrationStatus
-from ocpp.v16 import call_result
 
 logging.basicConfig(level=logging.INFO)
 
@@ -166,9 +159,6 @@ class ChargePoint(cp):
 
 
 async def on_connect(websocket, path):
-    """ For every new charge point that connects, create a ChargePoint
-    instance and start listening for messages.
-    """
     try:
         requested_protocols = websocket.request_headers[
             'Sec-WebSocket-Protocol']
@@ -180,9 +170,6 @@ async def on_connect(websocket, path):
     if websocket.subprotocol:
         logging.info("Protocols Matched: %s", websocket.subprotocol)
     else:
-        # In the websockets lib if no subprotocols are supported by the
-        # client and the server, it proceeds without a subprotocol,
-        # so we have to manually close the connection.
         logging.warning('Protocols Mismatched | Expected Subprotocols: %s,'
                         ' but client supports  %s | Closing connection',
                         websocket.available_subprotocols,
@@ -207,5 +194,4 @@ async def main():
     await server.wait_closed()
 
 if __name__ == "__main__":
-    # asyncio.run() is used when running this example with Python >= 3.7v
     asyncio.run(main())
