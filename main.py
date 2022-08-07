@@ -7,6 +7,7 @@ from ocpp.routing import on
 from ocpp.v16 import ChargePoint as cp
 from ocpp.v16.enums import Action, RegistrationStatus
 from ocpp.v16 import call_result
+import DataBase
 
 try:
     import websockets
@@ -18,80 +19,80 @@ except ModuleNotFoundError:
     import sys
     sys.exit(1)
 
-def Get_Client():
-    try:
-        connection = psycopg2.connect(
-            host=host,
-            user=user,
-            password=password,
-            database=db_name)
-        cursor = connection.cursor()
-        sql_insert_query = """ SELECT * FROM public."Client" """
+# def Get_Client():
+#     try:
+#         connection = psycopg2.connect(
+#             host=host,
+#             user=user,
+#             password=password,
+#             database=db_name)
+#         cursor = connection.cursor()
+#         sql_insert_query = """ SELECT * FROM public."Client" """
+#
+#         cursor.execute(sql_insert_query)
+#         connection.commit()
+#         print(cursor.rowcount, "Record inserted successfully into mobile table")
+#
+#         Tag = cursor.fetchall()
+#         return Tag
+#     except (Exception, psycopg2.Error) as error:
+#         print("Failed inserting record into mobile table {}".format(error))
+#
+#     finally:
+#         if connection:
+#             cursor.close()
+#             connection.close()
+#             print("PostgreSQL connection is closed")
 
-        cursor.execute(sql_insert_query)
-        connection.commit()
-        print(cursor.rowcount, "Record inserted successfully into mobile table")
-
-        Tag = cursor.fetchall()
-        return Tag
-    except (Exception, psycopg2.Error) as error:
-        print("Failed inserting record into mobile table {}".format(error))
-
-    finally:
-        if connection:
-            cursor.close()
-            connection.close()
-            print("PostgreSQL connection is closed")
-
-def Insert(id):
-    try:
-        connection = psycopg2.connect(
-            host=host,
-            user=user,
-            password=password,
-            database=db_name)
-        cursor = connection.cursor()
-        sql_insert_query = """ INSERT INTO public."Transaction" ("User") VALUES (%s)"""
-
-        cursor.execute(sql_insert_query, id)
-        connection.commit()
-        print(cursor.rowcount, "Record inserted successfully into mobile table")
-
-    except (Exception, psycopg2.Error) as error:
-        print("Failed inserting record into mobile table {}".format(error))
-
-    finally:
-        if connection:
-            cursor.close()
-            connection.close()
-            print("PostgreSQL connection is closed")
-
-def Update_trans():
-    try:
-        connection = psycopg2.connect(
-            host=host,
-            user=user,
-            password=password,
-            database=db_name)
-        cursor = connection.cursor()
-        sql_insert_query = """ SELECT id FROM public."Transaction" ORDER BY id DESC LIMIT 1"""
-
-        cursor.execute(sql_insert_query)
-        connection.commit()
-        print(cursor.rowcount, "Update done")
-
-        Transaction = cursor.fetchone()
-        idT = Transaction[0]
-        return idT
-
-    except (Exception, psycopg2.Error) as error:
-        print("Failed inserting record into mobile table {}".format(error))
-
-    finally:
-        if connection:
-            cursor.close()
-            connection.close()
-            print("PostgreSQL connection is closed")
+# def Insert(id):
+#     try:
+#         connection = psycopg2.connect(
+#             host=host,
+#             user=user,
+#             password=password,
+#             database=db_name)
+#         cursor = connection.cursor()
+#         sql_insert_query = """ INSERT INTO public."Transaction" ("User") VALUES (%s)"""
+#
+#         cursor.execute(sql_insert_query, id)
+#         connection.commit()
+#         print(cursor.rowcount, "Record inserted successfully into mobile table")
+#
+#     except (Exception, psycopg2.Error) as error:
+#         print("Failed inserting record into mobile table {}".format(error))
+#
+#     finally:
+#         if connection:
+#             cursor.close()
+#             connection.close()
+#             print("PostgreSQL connection is closed")
+#
+# def Update_trans():
+#     try:
+#         connection = psycopg2.connect(
+#             host=host,
+#             user=user,
+#             password=password,
+#             database=db_name)
+#         cursor = connection.cursor()
+#         sql_insert_query = """ SELECT id FROM public."Transaction" ORDER BY id DESC LIMIT 1"""
+#
+#         cursor.execute(sql_insert_query)
+#         connection.commit()
+#         print(cursor.rowcount, "Update done")
+#
+#         Transaction = cursor.fetchone()
+#         idT = Transaction[0]
+#         return idT
+#
+#     except (Exception, psycopg2.Error) as error:
+#         print("Failed inserting record into mobile table {}".format(error))
+#
+#     finally:
+#         if connection:
+#             cursor.close()
+#             connection.close()
+#             print("PostgreSQL connection is closed")
 
 logging.basicConfig(level=logging.INFO)
 
@@ -112,7 +113,7 @@ class ChargePoint(cp):
     @on(Action.Authorize)
     def on_autorize(self, id_tag: str, **kwargs):
         global User
-        Client = Get_Client()
+        Client = DataBase.Get_Client()
         for row in Client:
             if row[2] == id_tag:
                 User = row[0]
@@ -144,8 +145,8 @@ class ChargePoint(cp):
 
     @on(Action.StartTransaction)
     def on_start_transaction(self, connector_id: int, id_tag: str, meter_start: int, timestamp: str, **kwargs):
-        idt = Update_trans()
-        Insert([User])
+        idt = DataBase.Get_Trans()
+        DataBase.Insert([User])
         return call_result.StartTransactionPayload(
             transaction_id=idt+1,
             id_tag_info={'status': 'Accepted'}

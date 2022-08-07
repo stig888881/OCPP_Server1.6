@@ -9,14 +9,18 @@ def connect(*args):
             password=password,
             database=db_name)
         cursor = connection.cursor()
-        len=args[0]
+        len = args[0]
         if isinstance(len, str):
             cursor.execute(*args)
             connection.commit()
-            Client=cursor.fetchall()
-            return Client
+            if cursor.rowcount > 1:
+                Client=cursor.fetchall()
+                return Client
+            else:
+                Client=cursor.fetchone()
+                return Client[0]
         else:
-            sql= args[0]
+            sql = args[0]
             cursor.execute(sql[0], sql[1:])
             connection.commit()
 
@@ -33,14 +37,21 @@ def Get_Client():
     sql_insert_query = """ SELECT * FROM public."Client" """
     return sql_insert_query
 
-def Insert():
+def Insert(idT):
     sql_insert_query = """ INSERT INTO public."Transaction" ("User") VALUES (%s)"""
-    id = '1'
+    id = idT
     return sql_insert_query, id
+def Get_Trans():
+    sql_insert_query = """ SELECT id FROM public."Transaction" ORDER BY id DESC LIMIT 1 """
+    return sql_insert_query
 
-Client=connect(Get_Client())
-for row in Client:
-    print(row[0])
-    print(row[1])
-connect(Insert())
+# Client=connect(Get_Client())
+# for row in Client:
+#     print(row[0])
+#     print(row[1])
+#     print(row[2])
+# connect(Insert(1))
+# Trans = connect(Get_Trans())
+# print(Trans)
+
 
