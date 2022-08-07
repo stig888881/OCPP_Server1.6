@@ -113,7 +113,7 @@ class ChargePoint(cp):
     @on(Action.Authorize)
     def on_autorize(self, id_tag: str, **kwargs):
         global User
-        Client = DataBase.Get_Client()
+        Client = DataBase.connect(DataBase.Get_Client())
         for row in Client:
             if row[2] == id_tag:
                 User = row[0]
@@ -145,8 +145,8 @@ class ChargePoint(cp):
 
     @on(Action.StartTransaction)
     def on_start_transaction(self, connector_id: int, id_tag: str, meter_start: int, timestamp: str, **kwargs):
-        idt = DataBase.Get_Trans()
-        DataBase.Insert([User])
+        idt = DataBase.connect(DataBase.Get_Trans())
+        DataBase.connect(DataBase.Insert(User))
         return call_result.StartTransactionPayload(
             transaction_id=idt+1,
             id_tag_info={'status': 'Accepted'}
