@@ -41,17 +41,11 @@ def Insert(idT):
     sql_insert_query = """ INSERT INTO public."Transaction" ("User") VALUES (%s)"""
     id = idT
     return sql_insert_query, id
+
+def Get_ChargePoint():
+    sql_insert_query = """ SELECT * FROM public."ChargePoints" """
+    return sql_insert_query
+
 def Get_Trans():
     sql_insert_query = """ SELECT id FROM public."Transaction" ORDER BY id DESC LIMIT 1 """
     return sql_insert_query
-
-# Client=connect(Get_Client())
-# for row in Client:
-#     print(row[0])
-#     print(row[1])
-#     print(row[2])
-# connect(Insert(1))
-# Trans = connect(Get_Trans())
-# print(Trans)
-
-

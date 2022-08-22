@@ -1,13 +1,15 @@
 import asyncio
 import logging
-import psycopg2
-from config import host, user, password, db_name
+import sys
 from datetime import datetime
 from ocpp.routing import on
 from ocpp.v16 import ChargePoint as cp
 from ocpp.v16.enums import Action, RegistrationStatus
 from ocpp.v16 import call_result
 import DataBase
+from asyncqt import QEventLoop
+from PyQt5 import QtCore, QtWebSockets, QtNetwork
+from PyQt5.QtWidgets import QApplication
 
 try:
     import websockets
@@ -19,93 +21,86 @@ except ModuleNotFoundError:
     import sys
     sys.exit(1)
 
-# def Get_Client():
-#     try:
-#         connection = psycopg2.connect(
-#             host=host,
-#             user=user,
-#             password=password,
-#             database=db_name)
-#         cursor = connection.cursor()
-#         sql_insert_query = """ SELECT * FROM public."Client" """
-#
-#         cursor.execute(sql_insert_query)
-#         connection.commit()
-#         print(cursor.rowcount, "Record inserted successfully into mobile table")
-#
-#         Tag = cursor.fetchall()
-#         return Tag
-#     except (Exception, psycopg2.Error) as error:
-#         print("Failed inserting record into mobile table {}".format(error))
-#
-#     finally:
-#         if connection:
-#             cursor.close()
-#             connection.close()
-#             print("PostgreSQL connection is closed")
-
-# def Insert(id):
-#     try:
-#         connection = psycopg2.connect(
-#             host=host,
-#             user=user,
-#             password=password,
-#             database=db_name)
-#         cursor = connection.cursor()
-#         sql_insert_query = """ INSERT INTO public."Transaction" ("User") VALUES (%s)"""
-#
-#         cursor.execute(sql_insert_query, id)
-#         connection.commit()
-#         print(cursor.rowcount, "Record inserted successfully into mobile table")
-#
-#     except (Exception, psycopg2.Error) as error:
-#         print("Failed inserting record into mobile table {}".format(error))
-#
-#     finally:
-#         if connection:
-#             cursor.close()
-#             connection.close()
-#             print("PostgreSQL connection is closed")
-#
-# def Update_trans():
-#     try:
-#         connection = psycopg2.connect(
-#             host=host,
-#             user=user,
-#             password=password,
-#             database=db_name)
-#         cursor = connection.cursor()
-#         sql_insert_query = """ SELECT id FROM public."Transaction" ORDER BY id DESC LIMIT 1"""
-#
-#         cursor.execute(sql_insert_query)
-#         connection.commit()
-#         print(cursor.rowcount, "Update done")
-#
-#         Transaction = cursor.fetchone()
-#         idT = Transaction[0]
-#         return idT
-#
-#     except (Exception, psycopg2.Error) as error:
-#         print("Failed inserting record into mobile table {}".format(error))
-#
-#     finally:
-#         if connection:
-#             cursor.close()
-#             connection.close()
-#             print("PostgreSQL connection is closed")
 
 logging.basicConfig(level=logging.INFO)
 
 User = 0
 
+class MyServer(QtCore.QObject):
+    def __init__(self, parent):
+        super(QtCore.QObject, self).__init__(parent)
+        self.clients = []
+        print("server name: {}".format(parent.serverName()))
+        self.server = QtWebSockets.QWebSocketServer(parent.serverName(), parent.secureMode(), parent)
+        if self.server.listen(QtNetwork.QHostAddress.LocalHost, 1302):
+            print('Listening: {}:{}:{}'.format(
+                self.server.serverName(), self.server.serverAddress().toString(),
+                str(self.server.serverPort())))
+        else:
+            print('error')
+        self.server.acceptError.connect(self.onAcceptError)
+        self.server.newConnection.connect(self.onNewConnection)
+        self.clientConnection = None
+        print(self.server.isListening())
+
+    def onAcceptError(accept_error):
+        print("Accept Error: {}".format(accept_error))
+
+    def onNewConnection(self):
+        print("onNewConnection")
+        self.clientConnection = self.server.nextPendingConnection()
+        self.clientConnection.textMessageReceived.connect(self.processTextMessage)
+
+        self.clientConnection.textFrameReceived.connect(self.processTextFrame)
+
+        self.clientConnection.binaryMessageReceived.connect(self.processBinaryMessage)
+        self.clientConnection.disconnected.connect(self.socketDisconnected)
+
+        print("newClient")
+        self.clients.append(self.clientConnection)
+
+    def processTextFrame(self, frame, is_last_frame):
+        print("in processTextFrame")
+        print("\tFrame: {} ; is_last_frame: {}".format(frame, is_last_frame))
+
+    def processTextMessage(self, message):
+        print("processTextMessage - message: {}".format(message))
+        if self.clientConnection:
+            for client in self.clients:
+                client.sendTextMessage(message)
+
+
+    def processBinaryMessage(self, message):
+        print("b:",message)
+        if self.clientConnection:
+            self.clientConnection.sendBinaryMessage(message)
+
+    def socketDisconnected(self):
+        print("socketDisconnected")
+        if self.clientConnection:
+            self.clients.remove(self.clientConnection)
+            self.clientConnection.deleteLater()
+
 class ChargePoint(cp):
     @on(Action.BootNotification)
     def on_boot_notification(self, charge_point_vendor: str, charge_point_model: str, **kwargs):
-        return call_result.BootNotificationPayload(
-            current_time=datetime.utcnow().isoformat(),
-            interval=10,
-            status=RegistrationStatus.accepted
-        )
+        CP=DataBase.connect(DataBase.Get_ChargePoint())
+        for row in CP:
+            if charge_point_vendor == row[2] and charge_point_model == row[1]:
+                B=call_result.BootNotificationPayload(
+                    current_time=datetime.utcnow().isoformat(),
+                    interval=10,
+                    status=RegistrationStatus.accepted
+                )
+                break
+            else:
+                B=call_result.BootNotificationPayload(
+                    current_time=datetime.utcnow().isoformat(),
+                    interval=10,
+                    status=RegistrationStatus.rejected
+                )
+        return B
+
     @on(Action.StatusNotification)
     def on_status_notification(self, connector_id: int, error_code: str, status: str, timestamp:str, **kwargs):
         return call_result.StatusNotificationPayload()
@@ -179,7 +174,6 @@ async def on_connect(websocket, path):
 
     charge_point_id = path.strip('/')
     cp = ChargePoint(charge_point_id, websocket)
-
     await cp.start()
 
 
@@ -194,5 +188,17 @@ async def main():
     logging.info("Server Started listening to new connections...")
     await server.wait_closed()
 
+async def master():
+    await main()
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    app = QApplication(sys.argv)
+    loop = QEventLoop(app)
+    asyncio.set_event_loop(loop)
+    serverObject = QtWebSockets.QWebSocketServer('My Socket', QtWebSockets.QWebSocketServer.NonSecureMode)
+    server = MyServer(serverObject)
+    serverObject.closed.connect(app.quit)
+    with loop:
+        loop.create_task(master())
+        loop.run_forever()
+    #asyncio.run(main())
